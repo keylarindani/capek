@@ -1,21 +1,33 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 class HotelBookingApp:
     def __init__(self):
-        self.model = self.load_pickle('best_xgboost_model (2).pkl')
-        self.encoders = self.load_pickle('label_encoders (5).pkl')
+        self.model = self.load_model('best_xgboost_model (2).pkl')
+        self.encoders = self.load_model('label_encoders (5).pkl')
+        self.data = self.load_csv('Dataset_B_hotel.csv')  # Replace with actual filename if needed
 
-    def load_pickle(self, file_path):
-        with open(file_path, 'rb') as file:
-            return pickle.load(file)
+    def load_model(self, path):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+
+    def load_csv(self, path):
+        try:
+            return pd.read_csv(path)
+        except Exception as e:
+            st.warning(f"⚠️ Failed to load CSV file: {e}")
+            return None
 
     def encode_input(self, input_df):
         encoded_df = input_df.copy()
-        for col in ['type_of_meal_plan', 'room_type_reserved', 'market_segment_type']:
+        for col in encoded_df.select_dtypes(include='object').columns:
             if col in self.encoders:
-                encoded_df[col] = self.encoders[col].transform(encoded_df[col])
+                le = self.encoders[col]
+                encoded_df[col] = le.transform(encoded_df[col])
+            else:
+                encoded_df[col] = 0
         return encoded_df
 
     def predict(self, input_df):
@@ -25,85 +37,99 @@ class HotelBookingApp:
         return prediction, probability
 
     def run(self):
-        st.markdown("<h1 style='text-align: center;'>🏨 Hotel Booking Cancellation Prediction</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center;'>Prediksi apakah booking akan <b>dibatalkan</b> atau <b>tidak</b> menggunakan model XGBoost.</p>", unsafe_allow_html=True)
+        st.title("🏨 Hotel Booking Cancellation Prediction")
+        st.write("Predict whether a hotel booking will be **cancelled** or **not cancelled** based on the input data below.")
         st.markdown("---")
 
-        # Test Cases
+        # Dataset Preview
+        if self.data is not None:
+            st.subheader("📂 Dataset Preview")
+            st.dataframe(self.data.head(50))
+            st.markdown("---")
+
+        # Data Visualization
+        st.subheader("📊 Data Visualization")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.countplot(x='booking_status', data=self.data, ax=ax)
+        ax.set_title("Booking Status Distribution")
+        st.pyplot(fig)
+
+        st.subheader("✏️ Input Booking Information")
+
+        # Test cases (same as before)
         test_cases = {
             "Test Case 1": {
-                'no_of_adults': 3,
-                'no_of_children': 1,
-                'no_of_weekend_nights': 2,
-                'no_of_week_nights': 3,
+                'no_of_adults': 2,
+                'no_of_children': 0,
+                'no_of_weekend_nights': 1,
+                'no_of_week_nights': 2,
                 'type_of_meal_plan': 'Meal Plan 1',
                 'required_car_parking_space': 0.0,
-                'room_type_reserved': 'Room_Type 2',
-                'lead_time': 30,
-                'arrival_year': 2018,
-                'arrival_month': 8,
-                'arrival_date': 10,
+                'room_type_reserved': 'Room_Type 1',
+                'lead_time': 45,
+                'arrival_year': 2017,
+                'arrival_month': 7,
+                'arrival_date': 15,
                 'market_segment_type': 'Online',
                 'repeated_guest': 0,
                 'no_of_previous_cancellations': 0,
-                'no_of_previous_bookings_not_canceled': 1,
-                'avg_price_per_room': 110.0,
+                'no_of_previous_bookings_not_canceled': 0,
+                'avg_price_per_room': 100.0,
                 'no_of_special_requests': 1
             },
             "Test Case 2": {
-                'no_of_adults': 2,
+                'no_of_adults': 1,
                 'no_of_children': 2,
-                'no_of_weekend_nights': 1,
-                'no_of_week_nights': 4,
-                'type_of_meal_plan': 'Meal Plan 3',
+                'no_of_weekend_nights': 2,
+                'no_of_week_nights': 5,
+                'type_of_meal_plan': 'Meal Plan 2',
                 'required_car_parking_space': 1.0,
-                'room_type_reserved': 'Room_Type 4',
-                'lead_time': 85,
+                'room_type_reserved': 'Room_Type 3',
+                'lead_time': 100,
                 'arrival_year': 2017,
-                'arrival_month': 11,
-                'arrival_date': 22,
+                'arrival_month': 12,
+                'arrival_date': 25,
                 'market_segment_type': 'Offline',
                 'repeated_guest': 1,
                 'no_of_previous_cancellations': 1,
-                'no_of_previous_bookings_not_canceled': 2,
-                'avg_price_per_room': 145.0,
-                'no_of_special_requests': 3
+                'no_of_previous_bookings_not_canceled': 3,
+                'avg_price_per_room': 150.0,
+                'no_of_special_requests': 2
             }
         }
 
-        selected = st.radio("📁 Pilih Mode Input", ["Manual Input"] + list(test_cases.keys()))
+        selected_case = st.selectbox("📁 Choose a Test Case", ["Manual Input"] + list(test_cases.keys()))
 
-        if selected == "Manual Input":
-            input_data = pd.DataFrame([{
-                'no_of_adults': st.number_input('👤 Jumlah Dewasa', 1, 10, 2),
-                'no_of_children': st.number_input('🧒 Jumlah Anak-anak', 0, 10, 0),
-                'no_of_weekend_nights': st.number_input('🌙 Malam Akhir Pekan', 0, 10, 1),
-                'no_of_week_nights': st.number_input('🏢 Malam Hari Kerja', 0, 10, 2),
-                'type_of_meal_plan': st.selectbox('🍽️ Tipe Meal Plan', self.encoders['type_of_meal_plan'].classes_),
-                'required_car_parking_space': float(st.selectbox('🚗 Butuh Tempat Parkir?', [0, 1])),
-                'room_type_reserved': st.selectbox('🛏️ Tipe Kamar', self.encoders['room_type_reserved'].classes_),
-                'lead_time': st.slider('⏳ Lead Time (hari)', 0, 500, 45),
-                'arrival_year': st.selectbox('📅 Tahun Kedatangan', [2017, 2018]),
-                'arrival_month': st.slider('📆 Bulan Kedatangan', 1, 12, 7),
-                'arrival_date': st.slider('📆 Tanggal Kedatangan', 1, 31, 15),
-                'market_segment_type': st.selectbox('📊 Segmentasi Pasar', self.encoders['market_segment_type'].classes_),
-                'repeated_guest': st.selectbox('🔁 Tamu Berulang?', [0, 1]),
-                'no_of_previous_cancellations': st.slider('❌ Pembatalan Sebelumnya', 0, 10, 0),
-                'no_of_previous_bookings_not_canceled': st.slider('✅ Booking Sebelumnya Tidak Dibatalkan', 0, 10, 0),
-                'avg_price_per_room': st.number_input('💰 Harga Rata-rata Kamar', 0.0, 1000.0, 100.0),
-                'no_of_special_requests': st.slider('📌 Permintaan Khusus', 0, 5, 1)
-            }])
+        if selected_case != "Manual Input":
+            user_input = pd.DataFrame([test_cases[selected_case]])
         else:
-            input_data = pd.DataFrame([test_cases[selected]])
+            user_input = pd.DataFrame([{ 
+                'no_of_adults': st.number_input('Number of Adults', min_value=1, max_value=10, value=2),
+                'no_of_children': st.number_input('Number of Children', min_value=0, max_value=10, value=0),
+                'no_of_weekend_nights': st.number_input('Weekend Nights', min_value=0, max_value=10, value=1),
+                'no_of_week_nights': st.number_input('Week Nights', min_value=0, max_value=10, value=2),
+                'type_of_meal_plan': st.selectbox('Meal Plan Type', ['Meal Plan 1', 'Meal Plan 2', 'Meal Plan 3', 'Not Selected']),
+                'required_car_parking_space': float(st.selectbox('Car Parking Required?', [0, 1])),
+                'room_type_reserved': st.selectbox('Room Type Reserved', ['Room_Type 1', 'Room_Type 2', 'Room_Type 3', 'Room_Type 4', 'Room_Type 5', 'Room_Type 6', 'Room_Type 7']),
+                'lead_time': st.slider('Lead Time (days)', 0, 500, 45),
+                'arrival_year': st.selectbox('Arrival Year', [2017, 2018]),
+                'arrival_month': st.slider('Arrival Month', 1, 12, 7),
+                'arrival_date': st.slider('Arrival Date', 1, 31, 15),
+                'market_segment_type': st.selectbox('Market Segment Type', ['Online', 'Offline', 'Corporate', 'Aviation', 'Complementary']),
+                'repeated_guest': st.selectbox('Repeated Guest?', [0, 1]),
+                'no_of_previous_cancellations': st.slider('Previous Cancellations', 0, 10, 0),
+                'no_of_previous_bookings_not_canceled': st.slider('Previous Non-Cancelled Bookings', 0, 10, 0),
+                'avg_price_per_room': st.number_input('Average Price per Room', min_value=0.0, max_value=1000.0, value=100.0),
+                'no_of_special_requests': st.slider('Special Requests', 0, 5, 1)
+            }])
 
-        st.markdown("#### 🧾 Data Booking")
-        st.dataframe(input_data)
-
-        if st.button("🔮 Prediksi Sekarang"):
-            pred, prob = self.predict(input_data)
-            status = "✅ Not Canceled" if pred == 0 else "❌ Canceled"
-            st.success(f"Hasil Prediksi: **{status}**")
-            st.info(f"Probabilitas Pembatalan: **{prob:.2%}**")
+        if st.button("🔮 Predict Booking Status"):
+            pred, prob = self.predict(user_input)
+            status = "✅ Not Cancelled" if pred == 0 else "❌ Cancelled"
+            st.success(f"### Prediction: {status}")
+            st.info(f"### Cancellation Probability: {prob:.2%}")
+            st.markdown("#### 🔎 Data Used for Prediction")
+            st.dataframe(user_input)
 
 if __name__ == "__main__":
     app = HotelBookingApp()
