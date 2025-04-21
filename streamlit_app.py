@@ -29,12 +29,6 @@ class HotelBookingApp:
         st.markdown("<p style='text-align: center;'>Prediksi apakah booking akan <b>dibatalkan</b> atau <b>tidak</b> menggunakan model XGBoost.</p>", unsafe_allow_html=True)
         st.markdown("---")
 
-        # Show the dataset
-        if self.data is not None:
-            st.subheader("📂 Dataset Preview")
-            st.dataframe(self.data.head(50))
-            st.markdown("---")
-
         # Test Cases
         test_cases = {
             "Test Case 1": {
