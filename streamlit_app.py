@@ -4,8 +4,8 @@ import pickle
 
 class HotelBookingApp:
     def __init__(self):
-        self.model = self.load_pickle('xgboost_model.pkl')
-        self.encoders = self.load_pickle('label_encoders.pkl')
+        self.model = self.load_pickle('best_xgboost_model (2).pkl')
+        self.encoders = self.load_pickle('label_encoders (5).pkl')
 
     def load_pickle(self, file_path):
         with open(file_path, 'rb') as file:
